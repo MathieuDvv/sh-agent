@@ -1,0 +1,54 @@
+#compdef sh-agent
+
+local curcontext="$curcontext" state line ret=1
+
+_sh_agent_model_args() {
+  _values 'model option' 'refresh[refresh provider model cache]'
+}
+
+case "$words[1]" in
+  -ask|-act)
+    _message 'prompt text'
+    ret=0
+    ;;
+  -model)
+    _sh_agent_model_args
+    ret=$?
+    ;;
+  -provider|-usage|-custom|-history|-log|-help)
+    _message 'no arguments'
+    ret=0
+    ;;
+  sh-agent)
+    if (( CURRENT == 2 )); then
+      _values 'command' \
+        'ask[read-only agent]' \
+        'act[editing agent]' \
+        'model[choose model]' \
+        'provider[choose provider]' \
+        'usage[show usage]' \
+        'custom[customize UI]' \
+        'history[show recent sessions]' \
+        'log[show recent sessions]' \
+        'help[show help]'
+      ret=$?
+    else
+      case "$words[2]" in
+        ask|act)
+          _message 'prompt text'
+          ret=0
+          ;;
+        model)
+          _sh_agent_model_args
+          ret=$?
+          ;;
+        provider|usage|custom|history|log|help)
+          _message 'no arguments'
+          ret=0
+          ;;
+      esac
+    fi
+    ;;
+esac
+
+return ret

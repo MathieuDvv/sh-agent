@@ -1,0 +1,26 @@
+{
+  "name": "sh-agent",
+  "version": "0.1.0",
+  "description": "A tiny terminal-native agent with ask/act commands.",
+  "type": "module",
+  "bin": {
+    "sh-agent": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "install:aliases": "node scripts/install-aliases.mjs",
+    "setup": "npm run build && npm run install:aliases"
+  },
+  "dependencies": {
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
