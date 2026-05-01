@@ -91,7 +91,7 @@ npm install && npm run setup && exec zsh
 One-liner from a fresh clone:
 
 ```sh
-git clone <repo-url> sh-agent && cd sh-agent && npm install && npm run setup && exec zsh
+git clone https://github.com/MathieuDvv/sh-agent.git sh-agent && cd sh-agent && npm install && npm run setup && exec zsh
 ```
 
 `npm run setup` builds the CLI, installs the dash commands in `~/.local/bin`, installs zsh completion for commands, and updates the guarded sh-agent block in `~/.zshrc`.

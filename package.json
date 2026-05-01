@@ -11,7 +11,8 @@
     "build": "tsc",
     "dev": "tsx src/cli.ts",
     "install:aliases": "node scripts/install-aliases.mjs",
-    "setup": "npm run build && npm run install:aliases"
+    "setup": "npm run build && npm run install:aliases",
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "ora": "^8.2.0"
