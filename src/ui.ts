@@ -9,7 +9,7 @@ type SelectItem<T> = {label: string; description: string; value: T};
 type StyledSegment = {text: string; style?: "accent" | "dim" | "italic" | "code"};
 type StyledLine = StyledSegment[];
 type ToolTraceEntry = {name: string; detail?: string};
-type DiffLine = {kind: "same" | "add" | "remove" | "info"; text: string};
+type DiffLine = {kind: "same" | "add" | "remove" | "info"; text: string; oldLine?: number; newLine?: number};
 
 const spinnerSentences = [
   "Reading the room",
@@ -339,10 +339,11 @@ export async function confirmToolCall(tool: ToolApproval, ui: UiConfig): Promise
 async function printApprovalPreview(tool: ToolApproval, ui: UiConfig): Promise<void> {
   const lines = await approvalDiff(tool);
   const title = `${tool.name}${tool.detail ? ` ${tool.detail}` : ""}`;
+  const lineNumberWidth = diffLineNumberWidth(lines);
 
   console.log(colorAccent(`╭─ ${truncatePlain(title, selectorColumns() - 4)}`, ui.accentColor));
   for (const line of lines.slice(0, 24)) {
-    console.log(`${colorAccent("│", ui.accentColor)} ${styleDiffLine(line)}`);
+    console.log(`${colorAccent("│", ui.accentColor)} ${styleDiffLine(line, lineNumberWidth)}`);
   }
   if (lines.length > 24) {
     console.log(`${colorAccent("│", ui.accentColor)} ${dim(`… ${lines.length - 24} more lines`)}`);
@@ -374,15 +375,36 @@ function simpleDiff(before: string, after: string): DiffLine[] {
   const suffixLength = commonSuffixLength(beforeLines, afterLines, prefixLength);
   const beforeChanged = beforeLines.slice(prefixLength, beforeLines.length - suffixLength);
   const afterChanged = afterLines.slice(prefixLength, afterLines.length - suffixLength);
-  const contextBefore = beforeLines.slice(Math.max(0, prefixLength - 3), prefixLength);
-  const contextAfter = beforeLines.slice(beforeLines.length - suffixLength, beforeLines.length - suffixLength + 3);
+  const contextBeforeStart = Math.max(0, prefixLength - 3);
+  const contextBefore = beforeLines.slice(contextBeforeStart, prefixLength);
+  const oldContextAfterStart = beforeLines.length - suffixLength;
+  const newContextAfterStart = afterLines.length - suffixLength;
+  const contextAfter = beforeLines.slice(oldContextAfterStart, oldContextAfterStart + 3);
 
   return [
-    ...contextBefore.map((line) => ({kind: "same" as const, text: `  ${line}`})),
-    ...beforeChanged.map((line) => ({kind: "remove" as const, text: `- ${line}`})),
-    ...afterChanged.map((line) => ({kind: "add" as const, text: `+ ${line}`})),
-    ...contextAfter.map((line) => ({kind: "same" as const, text: `  ${line}`}))
-  ].filter((line) => line.text.trim().length > 0);
+    ...contextBefore.map((line, index) => ({
+      kind: "same" as const,
+      text: line,
+      oldLine: contextBeforeStart + index + 1,
+      newLine: contextBeforeStart + index + 1
+    })),
+    ...beforeChanged.map((line, index) => ({
+      kind: "remove" as const,
+      text: line,
+      oldLine: prefixLength + index + 1
+    })),
+    ...afterChanged.map((line, index) => ({
+      kind: "add" as const,
+      text: line,
+      newLine: prefixLength + index + 1
+    })),
+    ...contextAfter.map((line, index) => ({
+      kind: "same" as const,
+      text: line,
+      oldLine: oldContextAfterStart + index + 1,
+      newLine: newContextAfterStart + index + 1
+    }))
+  ];
 }
 
 function commonPrefixLength(a: string[], b: string[]): number {
@@ -405,18 +427,36 @@ function commonSuffixLength(a: string[], b: string[], prefixLength: number): num
   return count;
 }
 
-function styleDiffLine(line: DiffLine): string {
-  const text = truncatePlain(line.text, selectorColumns() - 4);
+function styleDiffLine(line: DiffLine, lineNumberWidth: number): string {
+  const prefix = diffLinePrefix(line, lineNumberWidth);
+  const text = truncatePlain(line.text, selectorColumns() - 4 - visibleLength(prefix));
+  const rendered = `${prefix}${text}`;
   if (line.kind === "add") {
-    return `\u001b[32m${text}\u001b[0m`;
+    return `\u001b[32m${rendered}\u001b[0m`;
   }
   if (line.kind === "remove") {
-    return `\u001b[31m${text}\u001b[0m`;
+    return `\u001b[31m${rendered}\u001b[0m`;
   }
   if (line.kind === "info") {
     return dim(text);
   }
-  return text;
+  return `${dim(prefix)}${text}`;
+}
+
+function diffLinePrefix(line: DiffLine, width: number): string {
+  const oldLine = line.oldLine === undefined ? "".padStart(width, " ") : String(line.oldLine).padStart(width, " ");
+  const newLine = line.newLine === undefined ? "".padStart(width, " ") : String(line.newLine).padStart(width, " ");
+  const marker = line.kind === "add" ? "+" : line.kind === "remove" ? "-" : " ";
+  return `${oldLine} ${newLine} ${marker} `;
+}
+
+function diffLineNumberWidth(lines: DiffLine[]): number {
+  const largest = lines.reduce((max, line) => Math.max(max, line.oldLine ?? 0, line.newLine ?? 0), 0);
+  return Math.max(1, String(largest).length);
+}
+
+function visibleLength(value: string): number {
+  return value.replace(/\u001b\[[0-9;]*m/g, "").length;
 }
 
 export function printHelp(ui: UiConfig): void {
