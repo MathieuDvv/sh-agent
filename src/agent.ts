@@ -87,7 +87,12 @@ export async function runAgent(
         name: formattedName,
         detail
       });
-      const result = await executeTool(toolCall.function.name, toolCall.function.arguments, mode);
+      let result: string;
+      try {
+        result = await executeTool(toolCall.function.name, toolCall.function.arguments, mode);
+      } catch (error) {
+        result = `Tool error: ${error instanceof Error ? error.message : String(error)}`;
+      }
       messages.push({
         role: "tool",
         tool_call_id: toolCall.id,

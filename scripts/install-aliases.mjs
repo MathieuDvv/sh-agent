@@ -9,7 +9,8 @@ const zshrcPath = join(homedir(), ".zshrc");
 const target = resolve("dist", "cli.js");
 const completionSource = resolve("completions", "_sh-agent");
 const completionTarget = join(completionDir, "_sh-agent");
-const commands = ["-ask", "-act", "-model", "-provider", "-usage", "-custom", "-history", "-log", "-help", "-update"];
+const commands = ["-ask", "-act", "-model", "-provider", "-usage", "-custom", "-history", "-help", "-update"];
+const staleCommands = ["-log"];
 const commandModes = {
   "-ask": "ask",
   "-act": "act",
@@ -18,7 +19,6 @@ const commandModes = {
   "-usage": "usage",
   "-custom": "custom",
   "-history": "history",
-  "-log": "history",
   "-help": "help",
   "-update": "update"
 };
@@ -38,6 +38,10 @@ const zshrcBlock = [
 await mkdir(binDir, {recursive: true});
 await mkdir(completionDir, {recursive: true});
 await chmod(target, 0o755);
+
+for (const command of staleCommands) {
+  await rm(join(binDir, command), {force: true});
+}
 
 for (const command of commands) {
   const link = join(binDir, command);

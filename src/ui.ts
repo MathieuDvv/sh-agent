@@ -431,7 +431,6 @@ export function printHelp(ui: UiConfig): void {
       "  -usage",
       "  -custom",
       "  -history",
-      "  -log",
       "  -help",
       "  -update",
       "",

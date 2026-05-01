@@ -13,7 +13,6 @@ const aliasCommands = new Map<string, string>([
   ["-usage", "usage"],
   ["-custom", "custom"],
   ["-history", "history"],
-  ["-log", "history"],
   ["-help", "help"],
   ["-update", "update"]
 ]);
@@ -50,7 +49,6 @@ async function main(): Promise<void> {
       await runCustom();
       return;
     case "history":
-    case "log":
       await runHistory();
       return;
     case "update":

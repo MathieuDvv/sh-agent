@@ -171,7 +171,6 @@ Use **arrow keys** to navigate, **Enter** to cycle a setting, and **Esc** to sav
 | `-usage` | Info | Inspect provider balance (when supported) |
 | `-custom` | Config | Open the customization menu |
 | `-history` | Info | Show recent ask/act sessions |
-| `-log` | Info | Alias for `-history` |
 | `-help` | Info | Show commands |
 | `-update` | Maintenance | Pull, install, rebuild, and refresh shell commands |
 
