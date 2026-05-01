@@ -1,6 +1,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/status-active-success" alt="Status">
-  <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue" alt="License">
+  <img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="License">
   <a href="https://ko-fi.com/dotslimy"><img src="https://img.shields.io/badge/support-ko--fi-ff5e5b?logo=kofi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
 
@@ -216,7 +216,7 @@ The current installer writes zsh aliases/completions and uses POSIX-style shell 
 
 ## License
 
-sh-agent uses the PolyForm Noncommercial License 1.0.0. It is source-available rather than OSI open source: personal, educational, nonprofit, and other noncommercial use/modification/distribution are allowed with notices; commercial resale/use requires separate permission.
+sh-agent is open source under the GNU General Public License v3.0 or later. You can use, study, modify, and redistribute it under the GPL terms. Contributions are welcome.
 
 ## History
 

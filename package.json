@@ -2,7 +2,7 @@
   "name": "sh-agent",
   "version": "0.1.0",
   "description": "A tiny terminal-native agent with ask/act commands.",
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "bin": {
     "sh-agent": "./dist/cli.js"
