@@ -17,6 +17,11 @@ type UpdateCache = {
   available: boolean;
 };
 
+type UpdateInfo = {
+  available: boolean;
+  branch: string;
+};
+
 export async function maybePrintUpdateNotice(ui: UiConfig): Promise<void> {
   try {
     const cached = await readUpdateCache();
@@ -50,7 +55,8 @@ export async function runUpdate(ui: UiConfig): Promise<void> {
     }
 
     loader.setText("Pulling latest changes");
-    await exec("git", ["pull", "--ff-only"]);
+    await exec("git", ["fetch", "origin", update.branch]);
+    await exec("git", ["merge", "--ff-only", `origin/${update.branch}`]);
     loader.setText("Installing dependencies");
     await exec("npm", ["install"]);
     loader.setText("Building sh-agent");
@@ -90,27 +96,28 @@ async function writeUpdateCache(available: boolean): Promise<void> {
   );
 }
 
-async function getUpdateInfo(): Promise<{available: boolean}> {
+async function getUpdateInfo(): Promise<UpdateInfo> {
+  const fallbackBranch = "main";
   const inside = (await exec("git", ["rev-parse", "--is-inside-work-tree"])).stdout.trim();
   if (inside !== "true") {
-    return {available: false};
+    return {available: false, branch: fallbackBranch};
   }
 
-  const branch = (await exec("git", ["branch", "--show-current"])).stdout.trim() || "main";
+  const branch = (await exec("git", ["branch", "--show-current"])).stdout.trim() || fallbackBranch;
   const local = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
   const remote = (await exec("git", ["ls-remote", "origin", `refs/heads/${branch}`])).stdout
     .trim()
     .split(/\s+/)[0];
 
   if (!remote || remote === local) {
-    return {available: false};
+    return {available: false, branch};
   }
 
   try {
     await exec("git", ["merge-base", "--is-ancestor", local, remote]);
-    return {available: true};
+    return {available: true, branch};
   } catch {
-    return {available: false};
+    return {available: false, branch};
   }
 }
 
