@@ -1,12 +1,15 @@
+import {readFile} from "node:fs/promises";
 import readline from "node:readline/promises";
 import {stdin, stdout} from "node:process";
 import ora, {type Ora} from "ora";
 import type {AccentColor, UiConfig} from "./types.js";
+import type {ApprovalDecision, ToolApproval} from "./agent.js";
 
 type SelectItem<T> = {label: string; description: string; value: T};
 type StyledSegment = {text: string; style?: "accent" | "dim" | "italic" | "code"};
 type StyledLine = StyledSegment[];
 type ToolTraceEntry = {name: string; detail?: string};
+type DiffLine = {kind: "same" | "add" | "remove" | "info"; text: string};
 
 const spinnerSentences = [
   "Reading the room",
@@ -135,7 +138,9 @@ export function printBox(title: string, body: string, ui: UiConfig, subtitle?: s
 export async function choose<T>(
   title: string,
   items: Array<SelectItem<T>>,
-  ui: UiConfig
+  ui: UiConfig,
+  hint = "Arrows navigate. Enter selects.",
+  cancelValue?: T
 ): Promise<T> {
   if (!stdin.isTTY || !stdout.isTTY) {
     return chooseByNumber(title, items);
@@ -165,7 +170,7 @@ export async function choose<T>(
     });
 
     stdout.write("\n");
-    stdout.write(`${dim("Arrows navigate. Enter selects.")}\n`);
+    stdout.write(`${dim(hint)}\n`);
     renderedLineCount = items.length + 3;
     rendered = true;
   };
@@ -176,7 +181,7 @@ export async function choose<T>(
     } else {
       selectedIndex = (selectedIndex + 1) % items.length;
     }
-  }, undefined, () => clearRenderBlock(renderedLineCount));
+  }, undefined, () => clearRenderBlock(renderedLineCount), cancelValue === undefined ? undefined : () => cancelValue);
 }
 
 export async function customizeSettings(
@@ -309,56 +314,109 @@ export async function promptSecret(prompt: string): Promise<string> {
   });
 }
 
-export async function confirmToolCall(tool: ToolTraceEntry, ui: UiConfig): Promise<boolean> {
-  const body = [
-    `${tool.name}${tool.detail ? ` ${tool.detail}` : ""}`,
-    "",
-    "Enter allows this action. Esc stops the agent."
-  ].join("\n");
+export async function confirmToolCall(tool: ToolApproval, ui: UiConfig): Promise<ApprovalDecision> {
+  await printApprovalPreview(tool, ui);
 
-  printBox("confirm", body, ui);
+  const items: Array<SelectItem<ApprovalDecision>> = [
+    {label: "Accept", description: "allow this action", value: "once"},
+    {label: "Accept all", description: "allow future edits in this act run", value: "all"},
+    {label: "Nope", description: "stop the agent", value: "no"}
+  ];
 
   if (!stdin.isTTY || !stdout.isTTY) {
     const rl = readline.createInterface({input: stdin, output: stdout});
     try {
       const answer = (await rl.question("Allow? [y/N] ")).trim().toLowerCase();
-      return answer === "y" || answer === "yes";
+      return answer === "y" || answer === "yes" ? "once" : "no";
     } finally {
       rl.close();
     }
   }
 
-  return new Promise<boolean>((resolve) => {
-    const wasRaw = stdin.isRaw;
+  return choose("confirm", items, ui, "Arrows navigate. Enter selects. Esc stops.", "no");
+}
 
-    const cleanup = () => {
-      stdin.off("data", onData);
-      stdin.setRawMode(wasRaw);
-      stdin.pause();
-      stdout.write("\u001b[?25h");
-    };
+async function printApprovalPreview(tool: ToolApproval, ui: UiConfig): Promise<void> {
+  const lines = await approvalDiff(tool);
+  const title = `${tool.name}${tool.detail ? ` ${tool.detail}` : ""}`;
 
-    const onData = (chunk: Buffer) => {
-      for (const char of chunk.toString("utf8")) {
-        if (char === "\r" || char === "\n") {
-          cleanup();
-          resolve(true);
-          return;
-        }
+  console.log(colorAccent(`╭─ ${truncatePlain(title, selectorColumns() - 4)}`, ui.accentColor));
+  for (const line of lines.slice(0, 24)) {
+    console.log(`${colorAccent("│", ui.accentColor)} ${styleDiffLine(line)}`);
+  }
+  if (lines.length > 24) {
+    console.log(`${colorAccent("│", ui.accentColor)} ${dim(`… ${lines.length - 24} more lines`)}`);
+  }
+  console.log(colorAccent("╰─", ui.accentColor));
+}
 
-        if (char === "\u001b" || char === "\u0003") {
-          cleanup();
-          resolve(false);
-          return;
-        }
-      }
-    };
+async function approvalDiff(tool: ToolApproval): Promise<DiffLine[]> {
+  if (tool.toolName !== "write_file") {
+    return [{kind: "info", text: tool.arguments}];
+  }
 
-    stdout.write("\u001b[?25l");
-    stdin.setRawMode(true);
-    stdin.resume();
-    stdin.on("data", onData);
-  });
+  try {
+    const args = JSON.parse(tool.arguments) as {path?: string; content?: string};
+    if (!args.path || typeof args.content !== "string") {
+      return [{kind: "info", text: tool.arguments}];
+    }
+    const before = await readFile(args.path, "utf8").catch(() => "");
+    return simpleDiff(before, args.content);
+  } catch {
+    return [{kind: "info", text: tool.arguments}];
+  }
+}
+
+function simpleDiff(before: string, after: string): DiffLine[] {
+  const beforeLines = before.split("\n");
+  const afterLines = after.split("\n");
+  const prefixLength = commonPrefixLength(beforeLines, afterLines);
+  const suffixLength = commonSuffixLength(beforeLines, afterLines, prefixLength);
+  const beforeChanged = beforeLines.slice(prefixLength, beforeLines.length - suffixLength);
+  const afterChanged = afterLines.slice(prefixLength, afterLines.length - suffixLength);
+  const contextBefore = beforeLines.slice(Math.max(0, prefixLength - 3), prefixLength);
+  const contextAfter = beforeLines.slice(beforeLines.length - suffixLength, beforeLines.length - suffixLength + 3);
+
+  return [
+    ...contextBefore.map((line) => ({kind: "same" as const, text: `  ${line}`})),
+    ...beforeChanged.map((line) => ({kind: "remove" as const, text: `- ${line}`})),
+    ...afterChanged.map((line) => ({kind: "add" as const, text: `+ ${line}`})),
+    ...contextAfter.map((line) => ({kind: "same" as const, text: `  ${line}`}))
+  ].filter((line) => line.text.trim().length > 0);
+}
+
+function commonPrefixLength(a: string[], b: string[]): number {
+  let index = 0;
+  while (index < a.length && index < b.length && a[index] === b[index]) {
+    index += 1;
+  }
+  return index;
+}
+
+function commonSuffixLength(a: string[], b: string[], prefixLength: number): number {
+  let count = 0;
+  while (
+    count < a.length - prefixLength &&
+    count < b.length - prefixLength &&
+    a[a.length - count - 1] === b[b.length - count - 1]
+  ) {
+    count += 1;
+  }
+  return count;
+}
+
+function styleDiffLine(line: DiffLine): string {
+  const text = truncatePlain(line.text, selectorColumns() - 4);
+  if (line.kind === "add") {
+    return `\u001b[32m${text}\u001b[0m`;
+  }
+  if (line.kind === "remove") {
+    return `\u001b[31m${text}\u001b[0m`;
+  }
+  if (line.kind === "info") {
+    return dim(text);
+  }
+  return text;
 }
 
 export function printHelp(ui: UiConfig): void {
@@ -391,7 +449,8 @@ function rawSelection<T>(
   value: () => T,
   move: (direction: "up" | "down") => void,
   onEnter?: () => boolean,
-  clear?: () => void
+  clear?: () => void,
+  cancelValue?: () => T
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const wasRaw = stdin.isRaw;
@@ -420,13 +479,12 @@ function rawSelection<T>(
         const sequence = key.slice(index, index + 3);
 
         if (char === "\u0003") {
-          cleanup();
-          reject(new Error("Cancelled."));
+          finish(cancelValue ? cancelValue() : value());
           return;
         }
 
         if (char === "\u001b" && key[index + 1] !== "[") {
-          finish(value());
+          finish(cancelValue ? cancelValue() : value());
           return;
         }
 

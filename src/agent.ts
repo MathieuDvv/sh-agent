@@ -10,13 +10,14 @@ const maxTurns = 10;
 export type AgentEvent =
   | {type: "status"; text: string}
   | {type: "tool"; name: string; detail?: string};
-export type ToolApproval = {name: string; detail?: string; arguments: string};
+export type ApprovalDecision = "once" | "all" | "no";
+export type ToolApproval = {name: string; toolName: string; detail?: string; arguments: string};
 
 export async function runAgent(
   mode: Mode,
   prompt: string,
   onEvent: (event: AgentEvent) => void,
-  confirmTool?: (tool: ToolApproval) => Promise<boolean>
+  confirmTool?: (tool: ToolApproval) => Promise<ApprovalDecision>
 ): Promise<string> {
   const config = await loadConfig();
   const model = findModel(config.model);
@@ -33,6 +34,7 @@ export async function runAgent(
     {role: "system", content: systemPrompt(mode)},
     {role: "user", content: referencedContext ? `${prompt}\n\nReferenced context:\n${referencedContext}` : prompt}
   ];
+  let acceptAllMutations = false;
 
   for (let turn = 0; turn < maxTurns; turn += 1) {
     onEvent({type: "status", text: turn === 0 ? "Asking the model" : "Continuing with tool results"});
@@ -65,13 +67,17 @@ export async function runAgent(
     for (const toolCall of toolCalls) {
       const formattedName = formatToolName(toolCall.function.name);
       const detail = toolDetail(toolCall.function.arguments);
-      if (mode === "act" && config.ui.confirmBeforeModify && isMutatingTool(toolCall.function.name)) {
-        const approved = await confirmTool?.({
+      if (mode === "act" && config.ui.confirmBeforeModify && isMutatingTool(toolCall.function.name) && !acceptAllMutations) {
+        const decision = await confirmTool?.({
           name: formattedName,
+          toolName: toolCall.function.name,
           detail,
           arguments: toolCall.function.arguments
         });
-        if (!approved) {
+        if (decision === "all") {
+          acceptAllMutations = true;
+        }
+        if (decision === "no" || !decision) {
           return `Stopped before ${formattedName}${detail ? ` ${detail}` : ""}.`;
         }
       }

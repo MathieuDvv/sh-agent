@@ -1,5 +1,5 @@
 import {exec, execFile} from "node:child_process";
-import {mkdir, readFile, readdir, writeFile} from "node:fs/promises";
+import {mkdir, readFile, readdir, stat, writeFile} from "node:fs/promises";
 import {homedir} from "node:os";
 import {dirname, resolve} from "node:path";
 import {promisify} from "node:util";
@@ -134,6 +134,12 @@ export async function executeTool(name: string, rawArgs: string, mode: Mode): Pr
 async function listFiles(pathValue: unknown, maxEntriesValue: unknown): Promise<string> {
   const target = expandPath(optionalString(pathValue) ?? ".");
   const maxEntries = optionalNumber(maxEntriesValue) ?? 120;
+  const targetStat = await stat(target);
+
+  if (!targetStat.isDirectory()) {
+    return `file ${target}`;
+  }
+
   const entries = await readdir(target, {withFileTypes: true});
 
   return entries

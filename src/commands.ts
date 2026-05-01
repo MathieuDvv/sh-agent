@@ -195,7 +195,7 @@ async function runAgentCommand(mode: Mode, prompt: string): Promise<void> {
       }
     }, async (tool) => {
       loader.pause();
-      const approved = await confirmToolCall({name: tool.name, detail: tool.detail}, config.ui);
+      const approved = await confirmToolCall(tool, config.ui);
       loader.resume();
       return approved;
     });
