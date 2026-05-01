@@ -1,6 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/status-active-success" alt="Status">
-  <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
+  <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue" alt="License">
+  <a href="https://ko-fi.com/dotslimy"><img src="https://img.shields.io/badge/support-ko--fi-ff5e5b?logo=kofi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
 
 <h1 align="center">sh-agent</h1>
@@ -52,6 +53,7 @@ custom
   Dim inactive rows  on      grey unselected selector choices
   Compact boxes      on      keep result boxes narrow
   Tool trace         off     show called tools under spinner
+  Confirm edits      on      enter allows changes, esc stops agent
 
 Arrows navigate. Enter cycles. Esc saves.
 ```
@@ -154,6 +156,7 @@ Use **arrow keys** to navigate, **Enter** to cycle a setting, and **Esc** to sav
 | Dim inactive | Dim inactive selector rows |
 | Result boxes | Compact or wider result boxes |
 | Tool trace | Show called tools under the spinner |
+| Confirm edits | Ask before `-act` writes files, creates directories, or runs shell commands |
 
 ---
 
@@ -170,6 +173,7 @@ Use **arrow keys** to navigate, **Enter** to cycle a setting, and **Esc** to sav
 | `-history` | Info | Show recent ask/act sessions |
 | `-log` | Info | Alias for `-history` |
 | `-help` | Info | Show commands |
+| `-update` | Maintenance | Pull, install, rebuild, and refresh shell commands |
 
 ### Examples
 
@@ -177,7 +181,37 @@ Use **arrow keys** to navigate, **Enter** to cycle a setting, and **Esc** to sav
 -ask Explain this project
 -act Create a simple landing page in ./site
 -model refresh
+-update
 ```
+
+## Updates
+
+Every command silently checks the git remote. If a newer version is available, sh-agent shows:
+
+```txt
+╭─ update
+│ A new version of sh-agent is available.
+│
+│ Run: -update
+╰─
+```
+
+`-update` runs a fast-forward git pull, installs dependencies, rebuilds, and refreshes shell aliases/completions.
+
+## Compatibility
+
+| Platform | Status |
+|----------|--------|
+| macOS + zsh | Supported |
+| Linux + zsh | Supported |
+| Windows | Not native yet |
+| Windows via WSL | Expected to work |
+
+The current installer writes zsh aliases/completions and uses POSIX-style shell assumptions. Native PowerShell/CMD support would need a separate installer and command shim layer.
+
+## License
+
+sh-agent uses the PolyForm Noncommercial License 1.0.0. It is source-available rather than OSI open source: personal, educational, nonprofit, and other noncommercial use/modification/distribution are allowed with notices; commercial resale/use requires separate permission.
 
 Example `-history` output:
 

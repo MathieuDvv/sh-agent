@@ -8,6 +8,11 @@ import type {Mode, ToolDefinition} from "./types.js";
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 const ignoredDirs = new Set([".git", "node_modules", "dist", ".next", ".turbo", "build", "coverage"]);
+const mutatingTools = new Set(["write_file", "make_dir", "run_shell"]);
+
+export function isMutatingTool(name: string): boolean {
+  return mutatingTools.has(name);
+}
 
 export function toolDefinitions(mode: Mode): ToolDefinition[] {
   const readOnly: ToolDefinition[] = [

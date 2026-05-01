@@ -9,7 +9,7 @@ const zshrcPath = join(homedir(), ".zshrc");
 const target = resolve("dist", "cli.js");
 const completionSource = resolve("completions", "_sh-agent");
 const completionTarget = join(completionDir, "_sh-agent");
-const commands = ["-ask", "-act", "-model", "-provider", "-usage", "-custom", "-history", "-log", "-help"];
+const commands = ["-ask", "-act", "-model", "-provider", "-usage", "-custom", "-history", "-log", "-help", "-update"];
 const commandModes = {
   "-ask": "ask",
   "-act": "act",
@@ -19,7 +19,8 @@ const commandModes = {
   "-custom": "custom",
   "-history": "history",
   "-log": "history",
-  "-help": "help"
+  "-help": "help",
+  "-update": "update"
 };
 const zshrcBlock = [
   "# sh-agent completions",

@@ -15,7 +15,7 @@ case "$words[1]" in
     _sh_agent_model_args
     ret=$?
     ;;
-  -provider|-usage|-custom|-history|-log|-help)
+  -provider|-usage|-custom|-history|-log|-help|-update)
     _message 'no arguments'
     ret=0
     ;;
@@ -30,7 +30,8 @@ case "$words[1]" in
         'custom[customize UI]' \
         'history[show recent sessions]' \
         'log[show recent sessions]' \
-        'help[show help]'
+        'help[show help]' \
+        'update[pull and rebuild latest version]'
       ret=$?
     else
       case "$words[2]" in
@@ -42,7 +43,7 @@ case "$words[1]" in
           _sh_agent_model_args
           ret=$?
           ;;
-        provider|usage|custom|history|log|help)
+        provider|usage|custom|history|log|help|update)
           _message 'no arguments'
           ret=0
           ;;

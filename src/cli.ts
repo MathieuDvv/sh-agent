@@ -2,6 +2,7 @@
 import {basename} from "node:path";
 import {runAct, runAsk, runCustom, runHistory, runModelPicker, runProviderPicker, runUsage} from "./commands.js";
 import {loadConfig} from "./config.js";
+import {maybePrintUpdateNotice, runUpdate} from "./update.js";
 import {printHelp} from "./ui.js";
 
 const aliasCommands = new Map<string, string>([
@@ -13,7 +14,8 @@ const aliasCommands = new Map<string, string>([
   ["-custom", "custom"],
   ["-history", "history"],
   ["-log", "history"],
-  ["-help", "help"]
+  ["-help", "help"],
+  ["-update", "update"]
 ]);
 
 async function main(): Promise<void> {
@@ -22,6 +24,11 @@ async function main(): Promise<void> {
   const command = aliasCommand ?? process.argv[2];
   const args = aliasCommand ? process.argv.slice(2) : process.argv.slice(3);
   const prompt = args.join(" ");
+  const config = await loadConfig();
+
+  if (command !== "update" && command !== undefined) {
+    await maybePrintUpdateNotice(config.ui);
+  }
 
   switch (command) {
     case "ask":
@@ -46,14 +53,17 @@ async function main(): Promise<void> {
     case "log":
       await runHistory();
       return;
+    case "update":
+      await runUpdate(config.ui);
+      return;
     case "help":
     case "--help":
     case "-h":
     case undefined:
-      printHelp((await loadConfig()).ui);
+      printHelp(config.ui);
       return;
     default:
-      printHelp((await loadConfig()).ui);
+      printHelp(config.ui);
       process.exitCode = 1;
   }
 }

@@ -10,6 +10,7 @@ export type UiConfig = {
   dimSelectorItems: boolean;
   compactBoxes: boolean;
   showToolTrace: boolean;
+  confirmBeforeModify: boolean;
 };
 
 export type ModelRef = {

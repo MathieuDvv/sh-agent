@@ -13,7 +13,8 @@ const defaultConfig: AppConfig = {
     showModelInTitle: false,
     dimSelectorItems: true,
     compactBoxes: true,
-    showToolTrace: false
+    showToolTrace: false,
+    confirmBeforeModify: true
   }
 };
 
@@ -81,7 +82,11 @@ function sanitizeUi(value: unknown): UiConfig {
     dimSelectorItems:
       typeof input.dimSelectorItems === "boolean" ? input.dimSelectorItems : defaultConfig.ui.dimSelectorItems,
     compactBoxes: typeof input.compactBoxes === "boolean" ? input.compactBoxes : defaultConfig.ui.compactBoxes,
-    showToolTrace: typeof input.showToolTrace === "boolean" ? input.showToolTrace : defaultConfig.ui.showToolTrace
+    showToolTrace: typeof input.showToolTrace === "boolean" ? input.showToolTrace : defaultConfig.ui.showToolTrace,
+    confirmBeforeModify:
+      typeof input.confirmBeforeModify === "boolean"
+        ? input.confirmBeforeModify
+        : defaultConfig.ui.confirmBeforeModify
   };
 }
 

@@ -4,7 +4,7 @@ import {appendHistory, getHistoryPath, readHistory} from "./history.js";
 import {clearCachedModels, getModelCachePath, readCachedModels, writeCachedModels} from "./model-cache.js";
 import {findModel, getBalance, listProviderModels, providers} from "./providers.js";
 import type {AccentColor, AppConfig, Mode, ProviderId, UiConfig} from "./types.js";
-import {choose, createQuietSpinner, customizeSettings, printBox, promptSecret} from "./ui.js";
+import {choose, confirmToolCall, createQuietSpinner, customizeSettings, printBox, promptSecret} from "./ui.js";
 
 export async function runAsk(prompt: string): Promise<void> {
   await runAgentCommand("ask", prompt);
@@ -157,6 +157,14 @@ export async function runCustom(): Promise<void> {
         cycle: () => {
           draft.showToolTrace = !draft.showToolTrace;
         }
+      },
+      {
+        label: "Confirm edits",
+        description: "enter allows changes, esc stops agent",
+        valueLabel: () => onOff(draft.confirmBeforeModify),
+        cycle: () => {
+          draft.confirmBeforeModify = !draft.confirmBeforeModify;
+        }
       }
     ],
     draft
@@ -185,6 +193,11 @@ async function runAgentCommand(mode: Mode, prompt: string): Promise<void> {
       } else {
         loader.setText(event.text);
       }
+    }, async (tool) => {
+      loader.pause();
+      const approved = await confirmToolCall({name: tool.name, detail: tool.detail}, config.ui);
+      loader.resume();
+      return approved;
     });
     loader.stop();
     await appendHistory({

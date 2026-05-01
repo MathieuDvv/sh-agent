@@ -3,15 +3,21 @@ import {homedir} from "node:os";
 import {resolve} from "node:path";
 import {loadConfig} from "./config.js";
 import {chatCompletion, findModel, providers} from "./providers.js";
-import {executeTool, toolDefinitions} from "./tools.js";
+import {executeTool, isMutatingTool, toolDefinitions} from "./tools.js";
 import type {ChatMessage, Mode} from "./types.js";
 
 const maxTurns = 10;
 export type AgentEvent =
   | {type: "status"; text: string}
   | {type: "tool"; name: string; detail?: string};
+export type ToolApproval = {name: string; detail?: string; arguments: string};
 
-export async function runAgent(mode: Mode, prompt: string, onEvent: (event: AgentEvent) => void): Promise<string> {
+export async function runAgent(
+  mode: Mode,
+  prompt: string,
+  onEvent: (event: AgentEvent) => void,
+  confirmTool?: (tool: ToolApproval) => Promise<boolean>
+): Promise<string> {
   const config = await loadConfig();
   const model = findModel(config.model);
   const provider = model ? providers[model.provider] : providers[config.provider];
@@ -57,10 +63,23 @@ export async function runAgent(mode: Mode, prompt: string, onEvent: (event: Agen
     });
 
     for (const toolCall of toolCalls) {
+      const formattedName = formatToolName(toolCall.function.name);
+      const detail = toolDetail(toolCall.function.arguments);
+      if (mode === "act" && config.ui.confirmBeforeModify && isMutatingTool(toolCall.function.name)) {
+        const approved = await confirmTool?.({
+          name: formattedName,
+          detail,
+          arguments: toolCall.function.arguments
+        });
+        if (!approved) {
+          return `Stopped before ${formattedName}${detail ? ` ${detail}` : ""}.`;
+        }
+      }
+
       onEvent({
         type: "tool",
-        name: formatToolName(toolCall.function.name),
-        detail: toolDetail(toolCall.function.arguments)
+        name: formattedName,
+        detail
       });
       const result = await executeTool(toolCall.function.name, toolCall.function.arguments, mode);
       messages.push({

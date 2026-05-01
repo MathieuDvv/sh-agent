@@ -43,6 +43,8 @@ export type QuietLoader = {
   spinner: Ora;
   setText: (text: string) => void;
   addTool: (entry: ToolTraceEntry) => void;
+  pause: () => void;
+  resume: () => void;
   stop: () => void;
   fail: (text: string) => void;
 };
@@ -57,6 +59,7 @@ export function createQuietSpinner(initialText: string, ui: UiConfig): QuietLoad
   }).start();
 
   let index = 0;
+  let active = true;
   const interval = setInterval(() => {
     index = (index + 1) % spinnerSentences.length;
     setText(spinnerSentences[index] ?? initialText);
@@ -64,21 +67,44 @@ export function createQuietSpinner(initialText: string, ui: UiConfig): QuietLoad
 
   const setText = (text: string) => {
     currentText = text;
-    spinner.text = loaderText(currentText, tools, ui);
+    if (active) {
+      spinner.text = loaderText(currentText, tools, ui);
+    }
   };
 
   const addTool = (entry: ToolTraceEntry) => {
     tools.push(entry);
+    if (active) {
+      spinner.text = loaderText(currentText, tools, ui);
+    }
+  };
+
+  const pause = () => {
+    if (!active) {
+      return;
+    }
+    active = false;
+    spinner.stop();
+  };
+
+  const resume = () => {
+    if (active) {
+      return;
+    }
+    active = true;
     spinner.text = loaderText(currentText, tools, ui);
+    spinner.start();
   };
 
   const stop = () => {
     clearInterval(interval);
+    active = false;
     spinner.stop();
   };
 
   const fail = (text: string) => {
     clearInterval(interval);
+    active = false;
     spinner.fail(text);
   };
 
@@ -86,6 +112,8 @@ export function createQuietSpinner(initialText: string, ui: UiConfig): QuietLoad
     spinner,
     setText,
     addTool,
+    pause,
+    resume,
     stop,
     fail
   };
@@ -281,13 +309,65 @@ export async function promptSecret(prompt: string): Promise<string> {
   });
 }
 
+export async function confirmToolCall(tool: ToolTraceEntry, ui: UiConfig): Promise<boolean> {
+  const body = [
+    `${tool.name}${tool.detail ? ` ${tool.detail}` : ""}`,
+    "",
+    "Enter allows this action. Esc stops the agent."
+  ].join("\n");
+
+  printBox("confirm", body, ui);
+
+  if (!stdin.isTTY || !stdout.isTTY) {
+    const rl = readline.createInterface({input: stdin, output: stdout});
+    try {
+      const answer = (await rl.question("Allow? [y/N] ")).trim().toLowerCase();
+      return answer === "y" || answer === "yes";
+    } finally {
+      rl.close();
+    }
+  }
+
+  return new Promise<boolean>((resolve) => {
+    const wasRaw = stdin.isRaw;
+
+    const cleanup = () => {
+      stdin.off("data", onData);
+      stdin.setRawMode(wasRaw);
+      stdin.pause();
+      stdout.write("\u001b[?25h");
+    };
+
+    const onData = (chunk: Buffer) => {
+      for (const char of chunk.toString("utf8")) {
+        if (char === "\r" || char === "\n") {
+          cleanup();
+          resolve(true);
+          return;
+        }
+
+        if (char === "\u001b" || char === "\u0003") {
+          cleanup();
+          resolve(false);
+          return;
+        }
+      }
+    };
+
+    stdout.write("\u001b[?25l");
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.on("data", onData);
+  });
+}
+
 export function printHelp(ui: UiConfig): void {
   printBox(
     "sh-agent",
     [
       "Usage:",
       "  -ask Where are my Arduino files?",
-      "  -act Create a quick website following @brief.md",
+      "  -act Create a quick website in ./site",
       "  -model",
       "  -provider",
       "  -usage",
@@ -295,6 +375,7 @@ export function printHelp(ui: UiConfig): void {
       "  -history",
       "  -log",
       "  -help",
+      "  -update",
       "",
       "You can also run:",
       "  sh-agent ask Explain this repo",
