@@ -213,6 +213,16 @@ The current installer writes zsh aliases/completions and uses POSIX-style shell 
 
 sh-agent uses the PolyForm Noncommercial License 1.0.0. It is source-available rather than OSI open source: personal, educational, nonprofit, and other noncommercial use/modification/distribution are allowed with notices; commercial resale/use requires separate permission.
 
+## History
+
+`-history` keeps a lightweight audit log of successful `ask` and `act` sessions in:
+
+```sh
+~/.config/sh-agent/history.json
+```
+
+Each entry stores the timestamp, mode, prompt, truncated answer, and model used.
+
 Example `-history` output:
 
 ```txt
@@ -224,16 +234,6 @@ Example `-history` output:
 │ Stored at ~/.config/sh-agent/history.json
 ╰─
 ```
-
-## History
-
-`-history` keeps a lightweight audit log of successful `ask` and `act` sessions in:
-
-```sh
-~/.config/sh-agent/history.json
-```
-
-Each entry stores the timestamp, mode, prompt, truncated answer, and model used.
 
 ## Model Cache
 

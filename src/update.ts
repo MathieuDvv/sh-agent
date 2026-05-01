@@ -1,5 +1,7 @@
 import {execFile} from "node:child_process";
-import {dirname} from "node:path";
+import {readFile, writeFile} from "node:fs/promises";
+import {tmpdir} from "node:os";
+import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {promisify} from "node:util";
 import type {UiConfig} from "./types.js";
@@ -7,10 +9,26 @@ import {createQuietSpinner, printBox} from "./ui.js";
 
 const execFileAsync = promisify(execFile);
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const updateCachePath = join(tmpdir(), "sh-agent-update-cache.json");
+const passiveCheckTtlMs = 6 * 60 * 60 * 1000;
+
+type UpdateCache = {
+  checkedAt: string;
+  available: boolean;
+};
 
 export async function maybePrintUpdateNotice(ui: UiConfig): Promise<void> {
   try {
+    const cached = await readUpdateCache();
+    if (cached && Date.now() - Date.parse(cached.checkedAt) < passiveCheckTtlMs) {
+      if (cached.available) {
+        printBox("update", "A new version of sh-agent is available.\n\nRun: -update", ui);
+      }
+      return;
+    }
+
     const update = await getUpdateInfo();
+    await writeUpdateCache(update.available);
     if (update.available) {
       printBox("update", "A new version of sh-agent is available.\n\nRun: -update", ui);
     }
@@ -24,6 +42,7 @@ export async function runUpdate(ui: UiConfig): Promise<void> {
 
   try {
     const update = await getUpdateInfo();
+    await writeUpdateCache(update.available);
     if (!update.available) {
       loader.stop();
       printBox("update", "sh-agent is already up to date.", ui);
@@ -38,12 +57,37 @@ export async function runUpdate(ui: UiConfig): Promise<void> {
     await exec("npm", ["run", "build"]);
     loader.setText("Updating shell commands");
     await exec("npm", ["run", "install:aliases"]);
+    await writeUpdateCache(false);
     loader.stop();
     printBox("update", "Updated sh-agent.\n\nRun: exec zsh", ui);
   } catch (error) {
     loader.fail("update failed");
     printBox("error", error instanceof Error ? error.message : String(error), ui);
   }
+}
+
+async function readUpdateCache(): Promise<UpdateCache | undefined> {
+  try {
+    const parsed = JSON.parse(await readFile(updateCachePath, "utf8")) as Partial<UpdateCache>;
+    if (typeof parsed.checkedAt === "string" && typeof parsed.available === "boolean") {
+      return {
+        checkedAt: parsed.checkedAt,
+        available: parsed.available
+      };
+    }
+  } catch {
+    // Missing or invalid cache means do a live check.
+  }
+
+  return undefined;
+}
+
+async function writeUpdateCache(available: boolean): Promise<void> {
+  await writeFile(
+    updateCachePath,
+    `${JSON.stringify({checkedAt: new Date().toISOString(), available}, null, 2)}\n`,
+    "utf8"
+  );
 }
 
 async function getUpdateInfo(): Promise<{available: boolean}> {
