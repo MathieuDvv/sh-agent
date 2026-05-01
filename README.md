@@ -98,6 +98,12 @@ git clone https://github.com/MathieuDvv/sh-agent.git sh-agent && cd sh-agent && 
 
 Add `~/.local/bin` to your `PATH` if it is not already there.
 
+Run the automated checks before cutting a release:
+
+```sh
+npm test
+```
+
 ### Zsh Completion
 
 The installer adds completions automatically:
