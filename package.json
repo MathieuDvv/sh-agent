@@ -1,6 +1,6 @@
 {
   "name": "sh-agent",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A tiny terminal-native agent with ask/act commands.",
   "license": "GPL-3.0-or-later",
   "type": "module",

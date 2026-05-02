@@ -1,4 +1,4 @@
-#compdef sh-agent
+#compdef sh-agent -ask -act -model -provider -personality -usage -custom -history -help -update
 
 local curcontext="$curcontext" state line ret=1
 
