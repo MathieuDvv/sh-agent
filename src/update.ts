@@ -23,6 +23,10 @@ type UpdateInfo = {
 };
 
 export async function maybePrintUpdateNotice(ui: UiConfig): Promise<void> {
+  if (isHomebrewInstall()) {
+    return;
+  }
+
   try {
     const cached = await readUpdateCache();
     if (cached && Date.now() - Date.parse(cached.checkedAt) < passiveCheckTtlMs) {
@@ -43,6 +47,11 @@ export async function maybePrintUpdateNotice(ui: UiConfig): Promise<void> {
 }
 
 export async function runUpdate(ui: UiConfig): Promise<void> {
+  if (isHomebrewInstall()) {
+    printBox("update", "sh-agent was installed with Homebrew.\n\nRun: brew upgrade sh-agent", ui);
+    return;
+  }
+
   const loader = createQuietSpinner("Checking for updates", ui);
 
   try {
@@ -70,6 +79,10 @@ export async function runUpdate(ui: UiConfig): Promise<void> {
     loader.fail("update failed");
     printBox("error", error instanceof Error ? error.message : String(error), ui);
   }
+}
+
+function isHomebrewInstall(): boolean {
+  return process.env.SH_AGENT_INSTALL_METHOD === "homebrew";
 }
 
 async function readUpdateCache(): Promise<UpdateCache | undefined> {

@@ -7,6 +7,10 @@
 <h1 align="center">sh-agent</h1>
 <p align="center"><em>A tiny terminal-native agent that behaves like a shell primitive.</em></p>
 
+```sh
+brew install MathieuDvv/sh-agent/sh-agent
+```
+
 ---
 
 ## What It Feels Like
@@ -74,6 +78,12 @@ The terminal renderer adapts common Markdown into terminal styling: bold text be
 ---
 
 ## Install
+
+With Homebrew:
+
+```sh
+brew install MathieuDvv/sh-agent/sh-agent
+```
 
 From this repo:
 
@@ -222,7 +232,13 @@ Run `-personality edit` to open that file in `$VISUAL` or `$EDITOR`. If no edito
 
 ## Updates
 
-Every command silently checks the git remote. If a newer version is available, sh-agent shows:
+Homebrew installs update through Brew:
+
+```sh
+brew upgrade sh-agent
+```
+
+Source installs silently check the git remote. If a newer version is available, sh-agent shows:
 
 ```txt
 ╭─ update
