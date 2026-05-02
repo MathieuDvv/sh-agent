@@ -1,5 +1,6 @@
 import {exec, execFile} from "node:child_process";
 import {mkdir, readFile, readdir, stat, writeFile} from "node:fs/promises";
+import {createRequire} from "node:module";
 import {homedir} from "node:os";
 import {dirname, resolve} from "node:path";
 import {promisify} from "node:util";
@@ -7,8 +8,31 @@ import type {Mode, ToolDefinition} from "./types.js";
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
+const require = createRequire(import.meta.url);
+const openWebSearchBin = require.resolve("open-websearch/build/index.js");
 const ignoredDirs = new Set([".git", "node_modules", "dist", ".next", ".turbo", "build", "coverage"]);
+const readOnlyToolNames = ["list_files", "find_files", "read_file", "search_text", "search_web"];
 const mutatingTools = new Set(["write_file", "make_dir", "run_shell"]);
+const webSearchEngines = new Set(["startpage", "duckduckgo", "brave"]);
+
+type WebSearchResult = {
+  title: string;
+  url: string;
+  description: string;
+  source?: string;
+  engine?: string;
+};
+
+type WebSearchPayload = {
+  status?: string;
+  data?: {
+    results?: WebSearchResult[];
+    partialFailures?: Array<{engine: string; message: string}>;
+  };
+  error?: {
+    message?: string;
+  } | null;
+};
 
 export function isMutatingTool(name: string): boolean {
   return mutatingTools.has(name);
@@ -61,6 +85,18 @@ export function toolDefinitions(mode: Mode): ToolDefinition[] {
           max_matches: numberSchema("Maximum matches to return. Defaults to 80.")
         }, ["query"])
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "search_web",
+        description: "Search the web without an API key and return concise source results. Use for current information or external documentation.",
+        parameters: objectSchema({
+          query: stringSchema("Web search query."),
+          max_results: numberSchema("Maximum results to return, from 1 to 10. Defaults to 5."),
+          engine: stringSchema("Optional search engine: startpage, duckduckgo, or brave. Defaults to startpage.")
+        }, ["query"])
+      }
     }
   ];
 
@@ -107,7 +143,7 @@ export function toolDefinitions(mode: Mode): ToolDefinition[] {
 export async function executeTool(name: string, rawArgs: string, mode: Mode): Promise<string> {
   const args = parseArgs(rawArgs);
 
-  if (mode === "ask" && !["list_files", "find_files", "read_file", "search_text"].includes(name)) {
+  if (mode === "ask" && !readOnlyToolNames.includes(name)) {
     return `Tool ${name} is not available in ask mode.`;
   }
 
@@ -120,6 +156,8 @@ export async function executeTool(name: string, rawArgs: string, mode: Mode): Pr
       return readTextFile(requiredString(args.path, "path"), args.max_chars);
     case "search_text":
       return searchText(args.path, requiredString(args.query, "query"), args.max_matches);
+    case "search_web":
+      return searchWeb(requiredString(args.query, "query"), args.max_results, args.engine);
     case "write_file":
       return writeTextFile(requiredString(args.path, "path"), requiredString(args.content, "content"));
     case "make_dir":
@@ -196,6 +234,68 @@ async function searchText(pathValue: unknown, query: string, maxMatchesValue: un
       return maybe.stdout?.trim() || "No matches.";
     }
     return searchTextFallback(target, query, maxMatches);
+  }
+}
+
+async function searchWeb(query: string, maxResultsValue: unknown, engineValue: unknown): Promise<string> {
+  const maxResults = clamp(optionalNumber(maxResultsValue) ?? 5, 1, 10);
+  const engine = webSearchEngine(engineValue);
+  const payload = await runOpenWebSearch(query, maxResults, engine);
+  const data = payload.status === "ok" ? payload.data : undefined;
+  const results = data?.results ?? [];
+
+  if (!results.length) {
+    const failures = data?.partialFailures
+      ?.map((failure) => `${failure.engine}: ${failure.message}`)
+      .join("\n");
+    return failures ? `No web results.\n${failures}` : "No web results.";
+  }
+
+  return uniqueWebResults(results)
+    .slice(0, maxResults)
+    .map((result, index) => {
+      const description = cleanSnippet(result.description);
+      return [
+        `${index + 1}. ${cleanSnippet(result.title)}`,
+        `url: ${result.url}`,
+        result.source ? `source: ${cleanSnippet(result.source)}` : undefined,
+        result.engine ? `engine: ${result.engine}` : undefined,
+        description ? `snippet: ${description}` : undefined
+      ].filter(Boolean).join("\n");
+    })
+    .join("\n\n");
+}
+
+async function runOpenWebSearch(query: string, maxResults: number, engine: string): Promise<WebSearchPayload> {
+  const args = [
+    openWebSearchBin,
+    "search",
+    query,
+    "--json",
+    "--limit",
+    String(maxResults),
+    "--engines",
+    engine
+  ];
+
+  try {
+    const {stdout} = await execFileAsync(process.execPath, args, {
+      env: {
+        ...process.env,
+        OPEN_WEBSEARCH_QUIET_STARTUP: "true",
+        DEFAULT_SEARCH_ENGINE: "startpage",
+        ALLOWED_SEARCH_ENGINES: "startpage,duckduckgo,brave",
+        SEARCH_MODE: "request"
+      },
+      maxBuffer: 1024 * 1024
+    });
+    return parseWebSearchPayload(stdout);
+  } catch (error) {
+    const maybe = error as {stdout?: string; message?: string};
+    if (maybe.stdout) {
+      return parseWebSearchPayload(maybe.stdout);
+    }
+    throw new Error(`Web search failed: ${maybe.message ?? String(error)}`);
   }
 }
 
@@ -314,4 +414,48 @@ function requiredString(value: unknown, name: string): string {
 
 function optionalNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(Math.trunc(value), min), max);
+}
+
+function cleanSnippet(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function webSearchEngine(value: unknown): string {
+  const engine = optionalString(value)?.toLowerCase();
+  return engine && webSearchEngines.has(engine) ? engine : "startpage";
+}
+
+function parseWebSearchPayload(stdout: string): WebSearchPayload {
+  const jsonStart = stdout.indexOf("{");
+  if (jsonStart < 0) {
+    throw new Error("Web search returned no JSON output.");
+  }
+
+  const parsed = JSON.parse(stdout.slice(jsonStart)) as WebSearchPayload;
+  if (parsed.status !== "ok" && parsed.error?.message) {
+    throw new Error(`Web search failed: ${parsed.error.message}`);
+  }
+  return parsed;
+}
+
+function uniqueWebResults(results: WebSearchResult[]): WebSearchResult[] {
+  const seen = new Set<string>();
+  const unique: WebSearchResult[] = [];
+
+  for (const result of results) {
+    if (!result.url || seen.has(result.url)) {
+      continue;
+    }
+    seen.add(result.url);
+    unique.push(result);
+  }
+
+  return unique;
 }

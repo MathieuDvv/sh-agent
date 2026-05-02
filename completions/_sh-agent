@@ -6,6 +6,10 @@ _sh_agent_model_args() {
   _values 'model option' 'refresh[refresh provider model cache]'
 }
 
+_sh_agent_personality_args() {
+  _values 'personality option' 'edit[open custom personality file in $VISUAL or $EDITOR]'
+}
+
 case "$words[1]" in
   -ask|-act)
     _message 'prompt text'
@@ -13,6 +17,10 @@ case "$words[1]" in
     ;;
   -model)
     _sh_agent_model_args
+    ret=$?
+    ;;
+  -personality)
+    _sh_agent_personality_args
     ret=$?
     ;;
   -provider|-usage|-custom|-history|-help|-update)
@@ -26,6 +34,7 @@ case "$words[1]" in
         'act[editing agent]' \
         'model[choose model]' \
         'provider[choose provider]' \
+        'personality[choose response personality]' \
         'usage[show usage]' \
         'custom[customize UI]' \
         'history[show recent sessions]' \
@@ -40,6 +49,10 @@ case "$words[1]" in
           ;;
         model)
           _sh_agent_model_args
+          ret=$?
+          ;;
+        personality)
+          _sh_agent_personality_args
           ret=$?
           ;;
         provider|usage|custom|history|help|update)

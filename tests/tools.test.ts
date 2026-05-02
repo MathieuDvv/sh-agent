@@ -5,7 +5,7 @@ import {afterEach, beforeEach, describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {executeTool, isMutatingTool, toolDefinitions} from "../src/tools.js";
 
-const readOnlyTools = new Set(["list_files", "find_files", "read_file", "search_text"]);
+const readOnlyTools = new Set(["list_files", "find_files", "read_file", "search_text", "search_web"]);
 
 let originalCwd = process.cwd();
 let tempDir = "";
@@ -24,7 +24,7 @@ describe("tool approval boundaries", () => {
   it("keeps ask mode read-only", () => {
     const askTools = toolDefinitions("ask").map((tool) => tool.function.name);
 
-    assert.deepEqual(askTools, ["list_files", "find_files", "read_file", "search_text"]);
+    assert.deepEqual(askTools, ["list_files", "find_files", "read_file", "search_text", "search_web"]);
     assert.equal(askTools.every((name) => readOnlyTools.has(name)), true);
     assert.equal(askTools.some((name) => isMutatingTool(name)), false);
   });

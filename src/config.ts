@@ -1,13 +1,15 @@
 import {chmod, mkdir, readFile, writeFile} from "node:fs/promises";
 import {homedir} from "node:os";
 import {dirname, join} from "node:path";
-import type {AccentColor, AppConfig, ProviderId, UiConfig} from "./types.js";
+import type {AccentColor, AppConfig, PersonalityId, ProviderId, UiConfig} from "./types.js";
 
-const configPath = join(homedir(), ".config", "sh-agent", "config.json");
+const configDir = join(homedir(), ".config", "sh-agent");
+const configPath = join(configDir, "config.json");
 
 const defaultConfig: AppConfig = {
   provider: "deepseek",
   model: "deepseek-v4-flash",
+  personality: "balanced",
   ui: {
     accentColor: "yellow",
     showModelInTitle: false,
@@ -25,6 +27,7 @@ export async function loadConfig(): Promise<AppConfig> {
     return {
       provider: isProvider(parsed.provider) ? parsed.provider : defaultConfig.provider,
       model: typeof parsed.model === "string" ? parsed.model : defaultConfig.model,
+      personality: isPersonality(parsed.personality) ? parsed.personality : defaultConfig.personality,
       apiKeys: sanitizeApiKeys(parsed.apiKeys),
       ui: sanitizeUi(parsed.ui)
     };
@@ -47,8 +50,16 @@ export function getConfigPath(): string {
   return configPath;
 }
 
+export function getConfigDir(): string {
+  return configDir;
+}
+
 function isProvider(value: unknown): value is ProviderId {
   return value === "deepseek" || value === "openai" || value === "google" || value === "anthropic" || value === "nvidia";
+}
+
+function isPersonality(value: unknown): value is PersonalityId {
+  return ["balanced", "concise", "mentor", "engineer", "planner", "custom"].includes(String(value));
 }
 
 function sanitizeApiKeys(value: unknown): AppConfig["apiKeys"] {

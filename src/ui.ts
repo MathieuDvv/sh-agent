@@ -468,6 +468,7 @@ export function printHelp(ui: UiConfig): void {
       "  -act Create a quick website in ./site",
       "  -model",
       "  -provider",
+      "  -personality",
       "  -usage",
       "  -custom",
       "  -history",
@@ -477,7 +478,8 @@ export function printHelp(ui: UiConfig): void {
       "You can also run:",
       "  sh-agent ask Explain this repo",
       "  sh-agent act Make a small change",
-      "  -model refresh"
+      "  -model refresh",
+      "  -personality edit"
     ].join("\n"),
     ui
   );

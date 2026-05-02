@@ -164,18 +164,33 @@ Use **arrow keys** to navigate, **Enter** to cycle a setting, and **Esc** to sav
 | Tool trace | Show called tools under the spinner |
 | Confirm edits | Ask before `-act` writes files, creates directories, or runs shell commands |
 
+### Personality
+
+```sh
+-personality
+```
+
+Choose one of five built-in response styles or **Custom**. Custom reads from:
+
+```sh
+~/.config/sh-agent/custom_p.md
+```
+
+Run `-personality edit` to open that file in `$VISUAL` or `$EDITOR`. If no editor is configured, sh-agent prints the path and leaves the file ready to edit.
+
 ---
 
 ## Commands
 
 | Command | Mode | Description |
 |---------|------|-------------|
-| `-ask <prompt>` | **Read-only** | List, search, and read files |
-| `-act <prompt>` | **Write** | Read, write, run commands, create directories |
+| `-ask <prompt>` | **Read-only** | List, web-search, search, and read files |
+| `-act <prompt>` | **Write** | Read, web-search, write, run commands, create directories |
 | `-provider` | Config | Choose provider with arrow keys |
 | `-model` | Config | Choose model with arrow keys |
 | `-usage` | Info | Inspect provider balance (when supported) |
 | `-custom` | Config | Open the customization menu |
+| `-personality` | Config | Choose response style or use a custom Markdown file |
 | `-history` | Info | Show recent ask/act sessions |
 | `-help` | Info | Show commands |
 | `-update` | Maintenance | Pull, install, rebuild, and refresh shell commands |

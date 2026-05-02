@@ -2,6 +2,13 @@ import {runAgent} from "./agent.js";
 import {loadConfig, saveConfig} from "./config.js";
 import {appendHistory, getHistoryPath, readHistory} from "./history.js";
 import {clearCachedModels, getModelCachePath, readCachedModels, writeCachedModels} from "./model-cache.js";
+import {
+  ensureCustomPersonalityFile,
+  getCustomPersonalityPath,
+  getPersonalityOption,
+  openCustomPersonalityFile,
+  personalityOptions
+} from "./personality.js";
 import {findModel, getBalance, listProviderModels, providers} from "./providers.js";
 import type {AccentColor, AppConfig, Mode, ProviderId, UiConfig} from "./types.js";
 import {choose, confirmToolCall, createQuietSpinner, customizeSettings, printBox, promptSecret} from "./ui.js";
@@ -108,6 +115,51 @@ export async function runUsage(): Promise<void> {
     loader.fail("usage failed");
     printBox("error", error instanceof Error ? error.message : String(error), config.ui);
   }
+}
+
+export async function runPersonalityPicker(args: string[] = []): Promise<void> {
+  const config = await loadConfig();
+
+  if (args.includes("edit") || args.includes("--edit")) {
+    const opened = await openCustomPersonalityFile();
+    const path = getCustomPersonalityPath();
+    printBox(
+      "personality",
+      opened === "opened"
+        ? `Edited custom personality.\n${path}`
+        : `Could not open custom personality.\n${openFileCommand(path)}`,
+      config.ui
+    );
+    return;
+  }
+
+  const selected = await choose(
+    `Current personality: ${getPersonalityOption(config.personality).label}`,
+    orderedPersonalityOptions(config.personality).map((option) => ({
+      label: option.label,
+      description: option.description,
+      value: option.id
+    })),
+    config.ui
+  );
+
+  await saveConfig({
+    ...config,
+    personality: selected
+  });
+
+  if (selected === "custom") {
+    const path = await ensureCustomPersonalityFile();
+    const editor = process.env.VISUAL || process.env.EDITOR || "$EDITOR";
+    printBox(
+      "personality",
+      `Current personality: Custom\nCustom file: ${path}\nEdit it with: ${editor === "$EDITOR" ? openFileCommand(path) : `${editor} ${path}`}\nOr run: -personality edit`,
+      config.ui
+    );
+    return;
+  }
+
+  printBox("personality", `Current personality: ${getPersonalityOption(selected).label}`, config.ui);
 }
 
 export async function runCustom(): Promise<void> {
@@ -255,6 +307,18 @@ function activeProviderId(config: AppConfig): ProviderId {
   return model?.provider ?? config.provider;
 }
 
+function orderedPersonalityOptions(current: AppConfig["personality"]): typeof personalityOptions {
+  const active = personalityOptions.find((option) => option.id === current);
+  if (!active) {
+    return personalityOptions;
+  }
+
+  return [
+    active,
+    ...personalityOptions.filter((option) => option.id !== current)
+  ];
+}
+
 function modelSubtitle(config: AppConfig): string | undefined {
   if (!config.ui.showModelInTitle) {
     return undefined;
@@ -275,6 +339,18 @@ function nextValue<T>(values: T[], current: T): T {
 
 function onOff(value: boolean): string {
   return value ? "on" : "off";
+}
+
+function openFileCommand(path: string): string {
+  if (process.platform === "darwin") {
+    return `open ${path}`;
+  }
+
+  if (process.platform === "win32") {
+    return `start ${path}`;
+  }
+
+  return `xdg-open ${path}`;
 }
 
 function providerDescription(providerId: ProviderId): string {

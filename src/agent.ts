@@ -3,6 +3,7 @@ import {homedir} from "node:os";
 import {resolve} from "node:path";
 import {loadConfig} from "./config.js";
 import {chatCompletion, findModel, providers} from "./providers.js";
+import {loadPersonalityPrompt} from "./personality.js";
 import {executeTool, isMutatingTool, toolDefinitions} from "./tools.js";
 import type {ChatMessage, Mode} from "./types.js";
 
@@ -30,8 +31,9 @@ export async function runAgent(
 
   const tools = toolDefinitions(mode);
   const referencedContext = await loadPromptReferences(prompt);
+  const personalityPrompt = await loadPersonalityPrompt(config.personality);
   const messages: ChatMessage[] = [
-    {role: "system", content: systemPrompt(mode)},
+    {role: "system", content: systemPrompt(mode, personalityPrompt)},
     {role: "user", content: referencedContext ? `${prompt}\n\nReferenced context:\n${referencedContext}` : prompt}
   ];
   let acceptAllMutations = false;
@@ -61,7 +63,8 @@ export async function runAgent(
     messages.push({
       role: "assistant",
       content: message.content ?? null,
-      tool_calls: toolCalls
+      tool_calls: toolCalls,
+      reasoning_content: message.reasoning_content
     });
 
     for (const toolCall of toolCalls) {
@@ -114,7 +117,7 @@ function toolDetail(rawArguments: string): string | undefined {
   }
 }
 
-function systemPrompt(mode: Mode): string {
+function systemPrompt(mode: Mode, personalityPrompt: string): string {
   const common = [
     "You are sh-agent, a quiet terminal-native coding assistant.",
     "Keep output concise and directly useful; prefer one or two short sentences unless the task needs more.",
@@ -129,7 +132,8 @@ function systemPrompt(mode: Mode): string {
     return [
       ...common,
       "You are in ask mode. You may inspect files, but you must not modify files or run mutating commands.",
-      "Answer the user in a compact final response."
+      "Answer the user in a compact final response.",
+      personalitySection(personalityPrompt)
     ].join("\n");
   }
 
@@ -137,8 +141,14 @@ function systemPrompt(mode: Mode): string {
     ...common,
     "You are in act mode. You may edit files, create directories, and run commands to complete the request.",
     "Avoid destructive shell commands unless the user explicitly asks for them.",
-    "After changes, summarize what changed and mention any verification you ran."
+    "After changes, summarize what changed and mention any verification you ran.",
+    personalitySection(personalityPrompt)
   ].join("\n");
+}
+
+function personalitySection(personalityPrompt: string): string {
+  const trimmed = personalityPrompt.trim();
+  return trimmed ? `User personality preferences:\n${trimmed}` : "";
 }
 
 function formatToolName(name: string): string {

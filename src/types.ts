@@ -4,6 +4,8 @@ export type Mode = "ask" | "act";
 
 export type AccentColor = "yellow" | "cyan" | "green" | "magenta" | "blue" | "white";
 
+export type PersonalityId = "balanced" | "concise" | "mentor" | "engineer" | "planner" | "custom";
+
 export type UiConfig = {
   accentColor: AccentColor;
   showModelInTitle: boolean;
@@ -23,6 +25,7 @@ export type ModelRef = {
 export type AppConfig = {
   provider: ProviderId;
   model: string;
+  personality: PersonalityId;
   apiKeys?: Partial<Record<ProviderId, string>>;
   ui: UiConfig;
 };
@@ -30,7 +33,7 @@ export type AppConfig = {
 export type ChatMessage =
   | {role: "system"; content: string}
   | {role: "user"; content: string}
-  | {role: "assistant"; content: string | null; tool_calls?: ToolCall[]}
+  | {role: "assistant"; content: string | null; tool_calls?: ToolCall[]; reasoning_content?: string}
   | {role: "tool"; content: string; tool_call_id: string};
 
 export type ToolCall = {
@@ -56,6 +59,7 @@ export type ChatResponse = {
     message: {
       content?: string | null;
       tool_calls?: ToolCall[];
+      reasoning_content?: string;
     };
     finish_reason?: string;
   }>;

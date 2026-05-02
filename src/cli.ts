@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 import {basename} from "node:path";
-import {runAct, runAsk, runCustom, runHistory, runModelPicker, runProviderPicker, runUsage} from "./commands.js";
+import {
+  runAct,
+  runAsk,
+  runCustom,
+  runHistory,
+  runModelPicker,
+  runPersonalityPicker,
+  runProviderPicker,
+  runUsage
+} from "./commands.js";
 import {loadConfig} from "./config.js";
 import {maybePrintUpdateNotice, runUpdate} from "./update.js";
 import {printHelp} from "./ui.js";
@@ -10,6 +19,7 @@ const aliasCommands = new Map<string, string>([
   ["-act", "act"],
   ["-model", "model"],
   ["-provider", "provider"],
+  ["-personality", "personality"],
   ["-usage", "usage"],
   ["-custom", "custom"],
   ["-history", "history"],
@@ -41,6 +51,9 @@ async function main(): Promise<void> {
       return;
     case "provider":
       await runProviderPicker();
+      return;
+    case "personality":
+      await runPersonalityPicker(args);
       return;
     case "usage":
       await runUsage();
