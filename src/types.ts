@@ -1,4 +1,12 @@
-export type ProviderId = "deepseek" | "openai" | "google" | "anthropic" | "nvidia";
+export type ProviderId =
+  | "deepseek"
+  | "openai"
+  | "google"
+  | "anthropic"
+  | "nvidia"
+  | "ollama"
+  | "lmstudio"
+  | "localllama";
 
 export type Mode = "ask" | "act";
 

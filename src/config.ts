@@ -55,7 +55,16 @@ export function getConfigDir(): string {
 }
 
 function isProvider(value: unknown): value is ProviderId {
-  return value === "deepseek" || value === "openai" || value === "google" || value === "anthropic" || value === "nvidia";
+  return [
+    "deepseek",
+    "openai",
+    "google",
+    "anthropic",
+    "nvidia",
+    "ollama",
+    "lmstudio",
+    "localllama"
+  ].includes(String(value));
 }
 
 function isPersonality(value: unknown): value is PersonalityId {
@@ -70,7 +79,7 @@ function sanitizeApiKeys(value: unknown): AppConfig["apiKeys"] {
   const input = value as Partial<Record<ProviderId, unknown>>;
   const apiKeys: Partial<Record<ProviderId, string>> = {};
 
-  for (const provider of ["deepseek", "openai", "google", "anthropic", "nvidia"] as const) {
+  for (const provider of ["deepseek", "openai", "google", "anthropic", "nvidia", "ollama", "lmstudio", "localllama"] as const) {
     if (typeof input[provider] === "string" && input[provider]?.trim()) {
       apiKeys[provider] = input[provider];
     }

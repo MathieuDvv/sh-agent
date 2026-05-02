@@ -9,9 +9,9 @@ import {
   openCustomPersonalityFile,
   personalityOptions
 } from "./personality.js";
-import {findModel, getBalance, listProviderModels, providers} from "./providers.js";
+import {findModel, getBalance, listProviderModels, providerBaseUrl, providers} from "./providers.js";
 import type {AccentColor, AppConfig, Mode, ProviderId, UiConfig} from "./types.js";
-import {choose, confirmToolCall, createQuietSpinner, customizeSettings, printBox, promptSecret} from "./ui.js";
+import {choose, chooseSearchable, confirmToolCall, createQuietSpinner, customizeSettings, printBox, promptSecret} from "./ui.js";
 
 export async function runAsk(prompt: string): Promise<void> {
   await runAgentCommand("ask", prompt);
@@ -23,11 +23,13 @@ export async function runAct(prompt: string): Promise<void> {
 
 export async function runProviderPicker(): Promise<void> {
   const config = await loadConfig();
-  const selected = await choose(
+  const selected = await chooseSearchable(
     `Current provider: ${providers[config.provider].label}`,
     Object.values(providers).map((provider) => ({
       label: provider.label,
       description: providerDescription(provider.id),
+      category: provider.category === "cloud" ? "Cloud providers" : "Local/self-hosted",
+      searchText: `${provider.id} ${providerSearchAliases(provider.id)} ${provider.baseUrlEnv ?? ""} ${providerBaseUrl(provider)}`,
       value: provider.id
     })),
     config.ui
@@ -42,7 +44,13 @@ export async function runProviderPicker(): Promise<void> {
   });
 
   await ensureProviderApiKey(selected);
-  printBox("provider", `Current provider: ${provider.label}`, config.ui);
+  printBox(
+    "provider",
+    [`Current provider: ${provider.label}`, provider.category === "local" ? `Base URL: ${providerBaseUrl(provider)}` : ""]
+      .filter(Boolean)
+      .join("\n"),
+    config.ui
+  );
 }
 
 export async function runModelPicker(args: string[] = []): Promise<void> {
@@ -269,6 +277,11 @@ async function runAgentCommand(mode: Mode, prompt: string): Promise<void> {
 async function ensureProviderApiKey(providerId: ProviderId): Promise<string> {
   const config = await loadConfig();
   const provider = providers[providerId];
+
+  if (!provider.apiKeyEnv) {
+    return "";
+  }
+
   const envValue = process.env[provider.apiKeyEnv]?.trim();
 
   if (envValue) {
@@ -303,7 +316,8 @@ async function ensureProviderApiKey(providerId: ProviderId): Promise<string> {
 }
 
 function activeProviderId(config: AppConfig): ProviderId {
-  const model = findModel(config.model);
+  const configuredProvider = providers[config.provider];
+  const model = configuredProvider.models.find((candidate) => candidate.id === config.model) ?? findModel(config.model);
   return model?.provider ?? config.provider;
 }
 
@@ -365,6 +379,23 @@ function providerDescription(providerId: ProviderId): string {
       return "Claude models";
     case "nvidia":
       return "NIM model catalog";
+    case "ollama":
+      return `${providerBaseUrl(providers.ollama)} local OpenAI-compatible server`;
+    case "lmstudio":
+      return `${providerBaseUrl(providers.lmstudio)} local OpenAI-compatible server`;
+    case "localllama":
+      return `${providerBaseUrl(providers.localllama)} llama.cpp/OpenAI-compatible server`;
+  }
+}
+
+function providerSearchAliases(providerId: ProviderId): string {
+  switch (providerId) {
+    case "lmstudio":
+      return "llm studio";
+    case "localllama":
+      return "local llama llama.cpp";
+    default:
+      return "";
   }
 }
 

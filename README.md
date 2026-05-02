@@ -130,10 +130,23 @@ The same block also creates `noglob` aliases, so prompts can contain punctuation
 | **Gemini**    | `GEMINI_API_KEY`        | `google/gemini-2.5-flash`              |
 | **Anthropic** | `ANTHROPIC_API_KEY`     | `anthropic/claude-sonnet-4-20250514`   |
 | **NVIDIA**    | `NVIDIA_API_KEY`        | `nvidia/llama-3.3-nemotron-super-49b-v1` |
+| **Ollama**    | none                    | `ollama/llama3.2`                      |
+| **LM Studio** | none                    | `lmstudio/local-model`                 |
+| **Local Llama** | none                  | `localllama/local-model`               |
 
 > DeepSeek is the default provider — inexpensive and OpenAI-compatible.
 
 If the active provider's env variable is unset, `-provider`, `-model`, `-ask`, `-act`, and `-usage` will prompt for the key and save it to `~/.config/sh-agent/config.json` with `0600` permissions.
+
+Local providers do not prompt for API keys. Defaults:
+
+| Provider | Default Base URL | Override |
+|----------|------------------|----------|
+| **Ollama** | `http://localhost:11434/v1` | `OLLAMA_BASE_URL` |
+| **LM Studio** | `http://localhost:1234/v1` | `LM_STUDIO_BASE_URL` |
+| **Local Llama** | `http://localhost:8080/v1` | `LOCAL_LLAMA_BASE_URL` |
+
+Run `-model refresh` after starting a local server to load its available model list.
 
 ### Available Models
 
@@ -144,6 +157,9 @@ If the active provider's env variable is unset, `-provider`, `-model`, `-ask`, `
 | **Gemini**   | `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-3-flash-preview`, `gemini-3-pro-preview` |
 | **Anthropic** | `claude-sonnet-4-20250514`, `claude-opus-4-1-20250805`, `claude-3-5-haiku-20241022` |
 | **NVIDIA**   | `llama-3.3-nemotron-super-49b-v1`, `llama-3.1-nemotron-ultra-253b-v1`, `llama-3.1-nemotron-51b-instruct`, `llama-3.1-nemotron-nano-4b-v1.1`, `deepseek-ai/deepseek-r1` |
+| **Ollama** | `llama3.2` fallback; refresh from the local server |
+| **LM Studio** | `local-model` fallback; refresh from the local server |
+| **Local Llama** | `local-model` fallback; refresh from the local server |
 
 ---
 
@@ -186,7 +202,7 @@ Run `-personality edit` to open that file in `$VISUAL` or `$EDITOR`. If no edito
 |---------|------|-------------|
 | `-ask <prompt>` | **Read-only** | List, web-search, search, and read files |
 | `-act <prompt>` | **Write** | Read, web-search, write, run commands, create directories |
-| `-provider` | Config | Choose provider with arrow keys |
+| `-provider` | Config | Search and choose cloud or local provider |
 | `-model` | Config | Choose model with arrow keys |
 | `-usage` | Info | Inspect provider balance (when supported) |
 | `-custom` | Config | Open the customization menu |

@@ -21,8 +21,9 @@ export async function runAgent(
   confirmTool?: (tool: ToolApproval) => Promise<ApprovalDecision>
 ): Promise<string> {
   const config = await loadConfig();
-  const model = findModel(config.model);
-  const provider = model ? providers[model.provider] : providers[config.provider];
+  const configuredProvider = providers[config.provider];
+  const model = configuredProvider.models.find((candidate) => candidate.id === config.model) ?? findModel(config.model);
+  const provider = model ? providers[model.provider] : configuredProvider;
   const modelId = model?.id ?? provider.models[0]?.id;
 
   if (!modelId) {
@@ -47,7 +48,7 @@ export async function runAgent(
       messages,
       tools,
       mode,
-      apiKey: process.env[provider.apiKeyEnv] ?? config.apiKeys?.[provider.id] ?? ""
+      apiKey: provider.apiKeyEnv ? process.env[provider.apiKeyEnv] ?? config.apiKeys?.[provider.id] ?? "" : ""
     });
 
     const message = response.choices[0]?.message;

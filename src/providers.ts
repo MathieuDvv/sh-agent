@@ -3,10 +3,12 @@ import type {ChatMessage, ChatResponse, Mode, ModelRef, ProviderId, ToolDefiniti
 export type Provider = {
   id: ProviderId;
   label: string;
+  category: "cloud" | "local";
   api: "openai-compatible" | "anthropic";
   baseUrl: string;
+  baseUrlEnv?: string;
   modelListUrl?: string;
-  apiKeyEnv: string;
+  apiKeyEnv?: string;
   models: ModelRef[];
   supportsBalance: boolean;
 };
@@ -15,6 +17,7 @@ export const providers: Record<ProviderId, Provider> = {
   deepseek: {
     id: "deepseek",
     label: "DeepSeek",
+    category: "cloud",
     api: "openai-compatible",
     baseUrl: "https://api.deepseek.com",
     apiKeyEnv: "DEEPSEEK_API_KEY",
@@ -37,6 +40,7 @@ export const providers: Record<ProviderId, Provider> = {
   openai: {
     id: "openai",
     label: "OpenAI",
+    category: "cloud",
     api: "openai-compatible",
     baseUrl: "https://api.openai.com/v1",
     apiKeyEnv: "OPENAI_API_KEY",
@@ -59,6 +63,7 @@ export const providers: Record<ProviderId, Provider> = {
   google: {
     id: "google",
     label: "Google",
+    category: "cloud",
     api: "openai-compatible",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
     modelListUrl: "https://generativelanguage.googleapis.com/v1beta/models",
@@ -94,6 +99,7 @@ export const providers: Record<ProviderId, Provider> = {
   anthropic: {
     id: "anthropic",
     label: "Anthropic",
+    category: "cloud",
     api: "anthropic",
     baseUrl: "https://api.anthropic.com/v1",
     apiKeyEnv: "ANTHROPIC_API_KEY",
@@ -122,6 +128,7 @@ export const providers: Record<ProviderId, Provider> = {
   nvidia: {
     id: "nvidia",
     label: "NVIDIA",
+    category: "cloud",
     api: "openai-compatible",
     baseUrl: "https://integrate.api.nvidia.com/v1",
     apiKeyEnv: "NVIDIA_API_KEY",
@@ -158,6 +165,57 @@ export const providers: Record<ProviderId, Provider> = {
         description: "DeepSeek R1 served through NVIDIA NIM"
       }
     ]
+  },
+  ollama: {
+    id: "ollama",
+    label: "Ollama",
+    category: "local",
+    api: "openai-compatible",
+    baseUrl: "http://localhost:11434/v1",
+    baseUrlEnv: "OLLAMA_BASE_URL",
+    supportsBalance: false,
+    models: [
+      {
+        id: "llama3.2",
+        provider: "ollama",
+        label: "llama3.2",
+        description: "Default Ollama fallback; run -model refresh while Ollama is running"
+      }
+    ]
+  },
+  lmstudio: {
+    id: "lmstudio",
+    label: "LM Studio",
+    category: "local",
+    api: "openai-compatible",
+    baseUrl: "http://localhost:1234/v1",
+    baseUrlEnv: "LM_STUDIO_BASE_URL",
+    supportsBalance: false,
+    models: [
+      {
+        id: "local-model",
+        provider: "lmstudio",
+        label: "local-model",
+        description: "LM Studio local server model; run -model refresh while the server is running"
+      }
+    ]
+  },
+  localllama: {
+    id: "localllama",
+    label: "Local Llama",
+    category: "local",
+    api: "openai-compatible",
+    baseUrl: "http://localhost:8080/v1",
+    baseUrlEnv: "LOCAL_LLAMA_BASE_URL",
+    supportsBalance: false,
+    models: [
+      {
+        id: "local-model",
+        provider: "localllama",
+        label: "local-model",
+        description: "llama.cpp/OpenAI-compatible local server; override with LOCAL_LLAMA_BASE_URL"
+      }
+    ]
   }
 };
 
@@ -170,7 +228,7 @@ export function findModel(modelId: string): ModelRef | undefined {
 }
 
 export async function listProviderModels(provider: Provider, apiKey: string): Promise<ModelRef[]> {
-  if (!apiKey.trim()) {
+  if (provider.apiKeyEnv && !apiKey.trim()) {
     return provider.models;
   }
 
@@ -197,7 +255,7 @@ export async function chatCompletion(input: {
   mode: Mode;
   apiKey: string;
 }): Promise<ChatResponse> {
-  if (!input.apiKey.trim()) {
+  if (input.provider.apiKeyEnv && !input.apiKey.trim()) {
     throw new Error(`Missing ${input.provider.apiKeyEnv}.`);
   }
 
@@ -218,12 +276,9 @@ export async function chatCompletion(input: {
 
   Object.assign(body, providerModelExtras(input.provider.id, input.model, input.mode));
 
-  const response = await fetch(`${input.provider.baseUrl}/chat/completions`, {
+  const response = await fetch(`${providerBaseUrl(input.provider)}/chat/completions`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${input.apiKey}`
-    },
+    headers: requestHeaders(input.provider, input.apiKey),
     body: JSON.stringify(body)
   });
 
@@ -259,7 +314,7 @@ async function anthropicMessages(input: {
     }));
   }
 
-  const response = await fetch(`${input.provider.baseUrl}/messages`, {
+  const response = await fetch(`${providerBaseUrl(input.provider)}/messages`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -374,7 +429,7 @@ export async function getBalance(provider: Provider, apiKey: string): Promise<st
     return `${provider.label} does not expose balance through this MVP.`;
   }
 
-  const response = await fetch(`${provider.baseUrl}/user/balance`, {
+  const response = await fetch(`${providerBaseUrl(provider)}/user/balance`, {
     headers: {
       authorization: `Bearer ${apiKey}`
     }
@@ -409,10 +464,8 @@ export async function getBalance(provider: Provider, apiKey: string): Promise<st
 }
 
 async function listOpenAiCompatibleModels(provider: Provider, apiKey: string): Promise<ModelRef[]> {
-  const response = await fetch(`${provider.baseUrl}/models`, {
-    headers: {
-      authorization: `Bearer ${apiKey}`
-    }
+  const response = await fetch(`${providerBaseUrl(provider)}/models`, {
+    headers: requestHeaders(provider, apiKey, false)
   });
 
   if (!response.ok) {
@@ -431,7 +484,7 @@ async function listOpenAiCompatibleModels(provider: Provider, apiKey: string): P
 }
 
 async function listAnthropicModels(provider: Provider, apiKey: string): Promise<ModelRef[]> {
-  const response = await fetch(`${provider.baseUrl}/models`, {
+  const response = await fetch(`${providerBaseUrl(provider)}/models`, {
     headers: {
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01"
@@ -450,6 +503,19 @@ async function listAnthropicModels(provider: Provider, apiKey: string): Promise<
     .map((id) => modelRef(provider.id, id, provider.models));
 
   return models.length ? models : provider.models;
+}
+
+export function providerBaseUrl(provider: Provider): string {
+  const override = provider.baseUrlEnv ? process.env[provider.baseUrlEnv]?.trim() : undefined;
+  return override ? override.replace(/\/$/, "") : provider.baseUrl;
+}
+
+function requestHeaders(provider: Provider, apiKey: string, includeContentType = true): Record<string, string> {
+  const headers: Record<string, string> = includeContentType ? {"content-type": "application/json"} : {};
+  if (apiKey.trim()) {
+    headers.authorization = `Bearer ${apiKey}`;
+  }
+  return headers;
 }
 
 async function listGoogleModels(provider: Provider, apiKey: string): Promise<ModelRef[]> {

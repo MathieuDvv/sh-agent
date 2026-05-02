@@ -6,6 +6,7 @@ import type {AccentColor, UiConfig} from "./types.js";
 import type {ApprovalDecision, ToolApproval} from "./agent.js";
 
 type SelectItem<T> = {label: string; description: string; value: T};
+type SearchableSelectItem<T> = SelectItem<T> & {category?: string; searchText?: string};
 type StyledSegment = {text: string; style?: "accent" | "dim" | "italic" | "code"};
 type StyledLine = StyledSegment[];
 type ToolTraceEntry = {name: string; detail?: string};
@@ -182,6 +183,165 @@ export async function choose<T>(
       selectedIndex = (selectedIndex + 1) % items.length;
     }
   }, undefined, () => clearRenderBlock(renderedLineCount), cancelValue === undefined ? undefined : () => cancelValue);
+}
+
+export async function chooseSearchable<T>(
+  title: string,
+  items: Array<SearchableSelectItem<T>>,
+  ui: UiConfig,
+  hint = "Type to search. Arrows navigate. Enter selects."
+): Promise<T> {
+  if (!stdin.isTTY || !stdout.isTTY) {
+    return chooseByNumber(
+      title,
+      items.map((item) => ({
+        ...item,
+        description: item.category ? `${item.category}: ${item.description}` : item.description
+      }))
+    );
+  }
+
+  let selectedIndex = 0;
+  let query = "";
+  let rendered = false;
+  let renderedLineCount = 0;
+
+  const filteredItems = () => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) {
+      return items;
+    }
+
+    return items.filter((item) => {
+      const haystack = [item.label, item.description, item.category, item.searchText]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(needle);
+    });
+  };
+
+  const render = () => {
+    const filtered = filteredItems();
+    if (selectedIndex >= filtered.length) {
+      selectedIndex = Math.max(0, filtered.length - 1);
+    }
+
+    const columns = selectorColumns();
+    const labelWidth = selectorLabelWidth(filtered.map((item) => item.label), columns);
+    let lineCount = 0;
+    let category = "";
+    resetRenderBlock(rendered, renderedLineCount);
+
+    stdout.write("\u001b[?25l");
+    stdout.write(`${truncateStyled(colorAccent(title, ui.accentColor), title, columns)}\n`);
+    stdout.write(`${dim(`search: ${query || "(all)"}`)}\n`);
+    lineCount += 2;
+
+    if (!filtered.length) {
+      stdout.write(`${dim("No matching providers.")}\n`);
+      lineCount += 1;
+    }
+
+    filtered.forEach((item, index) => {
+      if (item.category && item.category !== category) {
+        category = item.category;
+        stdout.write(`${dim(category)}\n`);
+        lineCount += 1;
+      }
+
+      const selected = index === selectedIndex;
+      const marker = selected ? colorAccent("●", ui.accentColor) : " ";
+      const plainLabel = truncatePlain(item.label, labelWidth).padEnd(labelWidth, " ");
+      const plainDescription = truncatePlain(item.description, Math.max(0, columns - labelWidth - 4));
+      const label = selected ? colorAccent(plainLabel, ui.accentColor) : maybeDim(plainLabel, ui.dimSelectorItems);
+      const description = selected ? plainDescription : maybeDim(plainDescription, ui.dimSelectorItems);
+      stdout.write(`${marker} ${label}  ${description}\n`);
+      lineCount += 1;
+    });
+
+    stdout.write("\n");
+    stdout.write(`${dim(hint)}\n`);
+    renderedLineCount = lineCount + 2;
+    rendered = true;
+  };
+
+  return new Promise<T>((resolve) => {
+    const wasRaw = stdin.isRaw;
+
+    const cleanup = () => {
+      clearRenderBlock(renderedLineCount);
+      stdin.off("data", onData);
+      stdin.setRawMode(wasRaw);
+      stdin.pause();
+      stdout.write("\u001b[?25h");
+    };
+
+    const finish = (value: T) => {
+      cleanup();
+      resolve(value);
+    };
+
+    const onData = (chunk: Buffer) => {
+      const key = chunk.toString("utf8");
+      let index = 0;
+
+      while (index < key.length) {
+        const char = key[index];
+        const sequence = key.slice(index, index + 3);
+        const filtered = filteredItems();
+
+        if (char === "\u0003" || (char === "\u001b" && key[index + 1] !== "[")) {
+          finish(filtered[selectedIndex]?.value ?? (items[0]?.value as T));
+          return;
+        }
+
+        if (char === "\r" || char === "\n") {
+          if (filtered[selectedIndex]) {
+            finish(filtered[selectedIndex].value);
+            return;
+          }
+          index += 1;
+          continue;
+        }
+
+        if (sequence === "\u001b[A") {
+          selectedIndex = selectedIndex === 0 ? Math.max(0, filtered.length - 1) : selectedIndex - 1;
+          render();
+          index += 3;
+          continue;
+        }
+
+        if (sequence === "\u001b[B") {
+          selectedIndex = filtered.length ? (selectedIndex + 1) % filtered.length : 0;
+          render();
+          index += 3;
+          continue;
+        }
+
+        if (char === "\u007f") {
+          query = query.slice(0, -1);
+          selectedIndex = 0;
+          render();
+          index += 1;
+          continue;
+        }
+
+        if (char >= " ") {
+          query += char;
+          selectedIndex = 0;
+          render();
+        }
+
+        index += 1;
+      }
+    };
+
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.on("data", onData);
+    render();
+  });
 }
 
 export async function customizeSettings(
